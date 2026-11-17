@@ -27,6 +27,30 @@ struct PipControl: Encodable {
 /// 用 NSShadow 直接绘制的投影层，避免 CALayer shadow 被裁剪。
 
 /// 顶层描边：CoreGraphics 统一描边，四边必然同宽。
+
+/// 非 layer-backed 的投影层：CoreGraphics 直接绘制，必定可见。
+final class ShadowOverlay: NSView {
+    var imageFrame: NSRect = .zero
+    override var isOpaque: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) {
+        guard imageFrame.width > 1 else { return }
+        let steps = 26
+        let inner = NSBezierPath(roundedRect: imageFrame.insetBy(dx: 0.5, dy: 0.5), xRadius: 12, yRadius: 12)
+        for i in 1...steps {
+            let grow = 2.0 + CGFloat(i) * 1.6
+            let a = 0.028 * (1 - CGFloat(i) / CGFloat(steps + 1))
+            let rect = imageFrame.insetBy(dx: -grow, dy: -grow).offsetBy(dx: 0, dy: -grow * 0.7)
+            let ring = NSBezierPath()
+            ring.append(NSBezierPath(roundedRect: rect, xRadius: 12 + grow, yRadius: 12 + grow))
+            ring.append(inner)
+            ring.windingRule = .evenOdd
+            NSColor.black.withAlphaComponent(a).setFill()
+            ring.fill()
+        }
+    }
+}
+
 final class BorderOverlay: NSView {
     var strokeAlpha: CGFloat = 0.10
     var lineWidthPoints: CGFloat = 1
@@ -115,9 +139,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
-    private let padX: CGFloat = 0
-    private let padTop: CGFloat = 0
-    private let padBottom: CGFloat = 0
+    private let padX: CGFloat = 26
+    private let padTop: CGFloat = 18
+    private let padBottom: CGFloat = 40
     private var shadowView: NSView!
     private var borderOverlay: BorderOverlay!
     private var contentView: PipContentView!
@@ -143,16 +167,10 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
         let size = image
         let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
-        window = NSPanel(contentRect: rect, styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            window.standardWindowButton(button)?.isHidden = true
-        }
-        window.isMovable = false
+        window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
@@ -178,8 +196,8 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         shadowView.layer?.shadowOffset = CGSize(width: 0, height: -8)
         content.addSubview(shadowView)
 
-        imageView = NSImageView(frame: content.bounds)
-        imageView.autoresizingMask = [.width, .height]
+        imageView = NSImageView(frame: imageRect(for: image))
+        imageView.autoresizingMask = []
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         imageView.layer?.cornerRadius = 12
@@ -233,7 +251,11 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
 
     private func applyChromeLayout(for image: NSSize) {
         let frame = imageRect(for: image)
-        shadowView.frame = frame
+        if let shadow = shadowView as? ShadowOverlay {
+            shadow.imageFrame = frame
+            shadow.frame = contentView?.bounds ?? frame
+            shadow.needsDisplay = true
+        }
         contentView?.imageFrame = .zero
         contentView?.needsDisplay = true
         imageView.frame = frame
