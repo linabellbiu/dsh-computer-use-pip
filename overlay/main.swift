@@ -89,7 +89,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = false
+        window.hasShadow = true
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
@@ -100,21 +100,10 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.onDoubleClick = { [weak self] in self?.onZoom() }
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
-        content.layer?.cornerRadius = 10
+        content.layer?.cornerRadius = 12
         content.layer?.borderWidth = 0
         content.layer?.masksToBounds = true
         window.contentView = content
-
-        // 原生玻璃底：NSVisualEffectView 提供毛玻璃质感，图片 inset 5pt 露出玻璃边
-        let glass = NSVisualEffectView(frame: content.bounds)
-        glass.material = .hudWindow
-        glass.blendingMode = .behindWindow
-        glass.state = .active
-        glass.autoresizingMask = [.width, .height]
-        glass.wantsLayer = true
-        glass.layer?.cornerRadius = 12
-        glass.layer?.masksToBounds = true
-        content.addSubview(glass)
 
         // 注意：这里必须用 content 的 bounds（窗口坐标），rect 里带的是屏幕原点
         let edge: CGFloat = 0
@@ -122,9 +111,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         imageView.autoresizingMask = [.width, .height]
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 10
+        imageView.layer?.cornerRadius = 12
         imageView.layer?.masksToBounds = true
-        glass.addSubview(imageView)
+        content.addSubview(imageView)
 
         // 右上角极小控制条：接管 / 关闭
         controlBar = NSView(frame: NSRect(x: rect.width - 62, y: rect.height - 30, width: 54, height: 22))
