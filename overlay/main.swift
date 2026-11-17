@@ -25,6 +25,23 @@ struct PipControl: Encodable {
 /// 可拖动的内容视图：拖拽移动窗口，双击切换缩放。按钮是子视图，不受影响。
 
 /// 用 NSShadow 直接绘制的投影层，避免 CALayer shadow 被裁剪。
+
+/// 顶层描边：CoreGraphics 统一描边，四边必然同宽。
+final class BorderOverlay: NSView {
+    var strokeAlpha: CGFloat = 0.10
+    var lineWidthPoints: CGFloat = 1
+    override var isOpaque: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) {
+        let lw = lineWidthPoints
+        let rect = bounds.insetBy(dx: lw / 2, dy: lw / 2)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 12 - lw / 2, yRadius: 12 - lw / 2)
+        path.lineWidth = lw
+        NSColor.red.withAlphaComponent(0.9).setStroke()
+        path.stroke()
+    }
+}
+
 final class ShadowView: NSView {
     override var isOpaque: Bool { false }
     override func draw(_ dirtyRect: NSRect) {
@@ -53,7 +70,7 @@ final class PipContentView: NSView {
             let grow = CGFloat(i)
             let rect = imageFrame.insetBy(dx: -grow, dy: -grow).offsetBy(dx: 0, dy: -grow * 0.45)
             let path = NSBezierPath(roundedRect: rect, xRadius: 12 + grow * 0.4, yRadius: 12 + grow * 0.4)
-            NSColor.black.withAlphaComponent(0.020).setFill()
+            NSColor.red.withAlphaComponent(0.25).setFill()
             path.fill()
         }
         NSGraphicsContext.restoreGraphicsState()
@@ -102,6 +119,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private let padTop: CGFloat = 0
     private let padBottom: CGFloat = 0
     private var shadowView: NSView!
+    private var borderOverlay: BorderOverlay!
     private var contentView: PipContentView!
 
     init(stateDir: URL) {
@@ -125,7 +143,13 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
         let size = windowSize(for: image)
         let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
-        window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
+        window = NSPanel(contentRect: rect, styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            window.standardWindowButton(button)?.isHidden = true
+        }
+        window.isMovable = false
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
@@ -140,8 +164,6 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
         content.layer?.cornerRadius = 12
-        content.layer?.borderWidth = 0.5
-        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.05).cgColor
         content.layer?.masksToBounds = false
         window.contentView = content
 
@@ -162,6 +184,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         imageView.wantsLayer = true
         imageView.layer?.cornerRadius = 12
         imageView.layer?.masksToBounds = true
+
         content.addSubview(imageView)
 
         // 右上角极小控制条：接管 / 关闭
@@ -209,6 +232,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func applyChromeLayout(for image: NSSize) {
         let frame = imageRect(for: image)
         shadowView.frame = frame
+        contentView?.imageFrame = .zero
         contentView?.needsDisplay = true
         imageView.frame = frame
         controlBar.frame = controlBarRect(for: image)
@@ -309,7 +333,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         let target = windowSize(for: image)
         frame.size = target
         if anchorTopRight {
-            frame.origin = NSPoint(x: right - target.width, y: top - target.height)
+            frame.origin = NSPoint(x: (right - target.width).rounded(), y: (top - target.height).rounded())
         }
         applyChromeLayout(for: image)
         let vf = (NSScreen.main ?? NSScreen.screens[0]).visibleFrame
