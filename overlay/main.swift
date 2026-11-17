@@ -65,6 +65,10 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
+    private let padX: CGFloat = 22
+    private let padTop: CGFloat = 16
+    private let padBottom: CGFloat = 34
+    private var shadowView: NSView!
 
     init(stateDir: URL) {
         self.stateDir = stateDir
@@ -84,34 +88,40 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
 
     private func buildWindow() {
         zoomed = defaults.bool(forKey: "pip.zoomed")
-        let size = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
+        let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
+        let size = windowSize(for: image)
         let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua)
 
-        let content = PipContentView(frame: rect)
+        let content = PipContentView(frame: NSRect(origin: .zero, size: size))
         content.onDoubleClick = { [weak self] in self?.onZoom() }
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
-        content.layer?.cornerRadius = 12
-        content.layer?.borderWidth = 0
-        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.12).cgColor
         content.layer?.masksToBounds = false
-        // 用系统原生窗口投影（不要自绘双层阴影）
-        content.layer?.shadowOpacity = 0
         window.contentView = content
 
-        // 注意：这里必须用 content 的 bounds（窗口坐标），rect 里带的是屏幕原点
-        let edge: CGFloat = 0
-        imageView = NSImageView(frame: content.bounds.insetBy(dx: edge, dy: edge))
-        imageView.autoresizingMask = [.width, .height]
+        // 投影层：窗口留出透明边距，投影画在边距里，边缘不会出现"描边"
+        shadowView = NSView(frame: imageRect(for: image))
+        shadowView.wantsLayer = true
+        shadowView.layer?.backgroundColor = NSColor.black.cgColor
+        shadowView.layer?.cornerRadius = 12
+        shadowView.layer?.shadowColor = NSColor.black.cgColor
+        shadowView.layer?.shadowOpacity = 0.30
+        shadowView.layer?.shadowRadius = 18
+        shadowView.layer?.shadowOffset = CGSize(width: 0, height: -8)
+        shadowView.layer?.shadowPath = CGPath(roundedRect: shadowView.bounds, cornerWidth: 12, cornerHeight: 12, transform: nil)
+        content.addSubview(shadowView)
+
+        imageView = NSImageView(frame: imageRect(for: image))
+        imageView.autoresizingMask = []
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         imageView.layer?.cornerRadius = 12
@@ -119,8 +129,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.addSubview(imageView)
 
         // 右上角极小控制条：接管 / 关闭
-        controlBar = NSView(frame: NSRect(x: rect.width - 62, y: rect.height - 30, width: 54, height: 22))
-        controlBar.autoresizingMask = [.minXMargin, .minYMargin]
+        controlBar = NSView(frame: controlBarRect(for: image))
         controlBar.wantsLayer = true
         controlBar.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 0.62).cgColor
         controlBar.layer?.cornerRadius = 11
@@ -145,10 +154,28 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
             bx += 25
         }
 
-
-
         window.setFrame(rect, display: false)
         window.orderFrontRegardless()
+    }
+
+    private func windowSize(for image: NSSize) -> NSSize {
+        NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom)
+    }
+
+    private func imageRect(for image: NSSize) -> NSRect {
+        NSRect(x: padX, y: padBottom, width: image.width, height: image.height)
+    }
+
+    private func controlBarRect(for image: NSSize) -> NSRect {
+        NSRect(x: padX + image.width - 62, y: padBottom + image.height - 30, width: 54, height: 22)
+    }
+
+    private func applyChromeLayout(for image: NSSize) {
+        let frame = imageRect(for: image)
+        shadowView.frame = frame
+        shadowView.layer?.shadowPath = CGPath(roundedRect: shadowView.bounds, cornerWidth: 12, cornerHeight: 12, transform: nil)
+        imageView.frame = frame
+        controlBar.frame = controlBarRect(for: image)
     }
 
     private var currentWidth: CGFloat { width * (zoomed ? zoomFactor : 1) }
@@ -242,12 +269,13 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         var frame = window.frame
         let top = frame.origin.y + frame.height
         let right = frame.origin.x + frame.width
-        let target = NSSize(width: currentWidth, height: heightFor(aspect: lastAspect > 0 ? lastAspect : 1.6))
+        let image = NSSize(width: currentWidth, height: heightFor(aspect: lastAspect > 0 ? lastAspect : 1.6))
+        let target = windowSize(for: image)
         frame.size = target
         if anchorTopRight {
             frame.origin = NSPoint(x: right - target.width, y: top - target.height)
         }
-        // 保证不越出屏幕可视区域
+        applyChromeLayout(for: image)
         let vf = (NSScreen.main ?? NSScreen.screens[0]).visibleFrame
         if frame.maxX > vf.maxX { frame.origin.x = vf.maxX - frame.width }
         if frame.minX < vf.minX { frame.origin.x = vf.minX }
