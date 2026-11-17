@@ -23,8 +23,41 @@ struct PipControl: Encodable {
 }
 
 /// 可拖动的内容视图：拖拽移动窗口，双击切换缩放。按钮是子视图，不受影响。
+
+/// 用 NSShadow 直接绘制的投影层，避免 CALayer shadow 被裁剪。
+final class ShadowView: NSView {
+    override var isOpaque: Bool { false }
+    override func draw(_ dirtyRect: NSRect) {
+        let rect = bounds.insetBy(dx: 1, dy: 1)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 12, yRadius: 12)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.38)
+        shadow.shadowBlurRadius = 16
+        shadow.shadowOffset = NSSize(width: 0, height: -8)
+        shadow.set()
+        NSColor.black.setFill()
+        path.fill()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+}
+
 final class PipContentView: NSView {
     var onDoubleClick: (() -> Void)?
+    var imageFrame: NSRect = .zero
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard imageFrame.width > 1 else { return }
+        NSGraphicsContext.saveGraphicsState()
+        for i in 1...18 {
+            let grow = CGFloat(i)
+            let rect = imageFrame.insetBy(dx: -grow, dy: -grow).offsetBy(dx: 0, dy: -grow * 0.45)
+            let path = NSBezierPath(roundedRect: rect, xRadius: 12 + grow * 0.4, yRadius: 12 + grow * 0.4)
+            NSColor.black.withAlphaComponent(0.020).setFill()
+            path.fill()
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
     private var dragStartMouse: NSPoint?
     private var dragStartOrigin: NSPoint?
 
@@ -69,6 +102,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private let padTop: CGFloat = 16
     private let padBottom: CGFloat = 34
     private var shadowView: NSView!
+    private var contentView: PipContentView!
 
     init(stateDir: URL) {
         self.stateDir = stateDir
@@ -114,10 +148,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         shadowView.layer?.backgroundColor = NSColor.black.cgColor
         shadowView.layer?.cornerRadius = 12
         shadowView.layer?.shadowColor = NSColor.black.cgColor
-        shadowView.layer?.shadowOpacity = 0.30
-        shadowView.layer?.shadowRadius = 18
+        shadowView.layer?.shadowOpacity = 0
+        shadowView.layer?.shadowRadius = 24
         shadowView.layer?.shadowOffset = CGSize(width: 0, height: -8)
-        shadowView.layer?.shadowPath = CGPath(roundedRect: shadowView.bounds, cornerWidth: 12, cornerHeight: 12, transform: nil)
         content.addSubview(shadowView)
 
         imageView = NSImageView(frame: imageRect(for: image))
@@ -173,7 +206,8 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func applyChromeLayout(for image: NSSize) {
         let frame = imageRect(for: image)
         shadowView.frame = frame
-        shadowView.layer?.shadowPath = CGPath(roundedRect: shadowView.bounds, cornerWidth: 12, cornerHeight: 12, transform: nil)
+        contentView?.imageFrame = frame
+        contentView?.needsDisplay = true
         imageView.frame = frame
         controlBar.frame = controlBarRect(for: image)
     }
