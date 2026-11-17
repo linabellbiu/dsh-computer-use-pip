@@ -140,8 +140,8 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
         content.layer?.cornerRadius = 12
-        content.layer?.borderWidth = 1
-        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.18).cgColor
+        content.layer?.borderWidth = 0.5
+        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.10).cgColor
         content.layer?.masksToBounds = false
         window.contentView = content
 
@@ -209,7 +209,6 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func applyChromeLayout(for image: NSSize) {
         let frame = imageRect(for: image)
         shadowView.frame = frame
-        contentView?.imageFrame = frame
         contentView?.needsDisplay = true
         imageView.frame = frame
         controlBar.frame = controlBarRect(for: image)
