@@ -141,10 +141,10 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
-    private let glassPad: CGFloat = 8
-    private let padX: CGFloat = 18
-    private let padTop: CGFloat = 14
-    private let padBottom: CGFloat = 28
+    private let glassPad: CGFloat = 0
+    private let padX: CGFloat = 0
+    private let padTop: CGFloat = 0
+    private let padBottom: CGFloat = 0
     private var shadowView: NSView!
     private var cornerBacking: NSView!
     private var clipView: NSView!
@@ -180,7 +180,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = false
+        window.hasShadow = true
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
@@ -208,17 +208,17 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         glass.state = NSVisualEffectView.State.active
         glass.autoresizingMask = []
         glass.wantsLayer = true
-        glass.layer?.cornerRadius = 16
+        glass.layer?.cornerRadius = 12
         glass.layer?.masksToBounds = true
         glassView = glass
         content.addSubview(glass)
 
         // 玻璃边缘高光（1px 白 18%，不是黑边）
         let rim = BorderOverlay(frame: glass.bounds)
-        rim.strokeColor = NSColor.white
-        rim.strokeAlpha = 0.18
-        rim.cornerRadiusPoints = 16
-        rim.lineWidthPoints = 1
+        rim.strokeColor = NSColor.black
+        rim.strokeAlpha = 0.30
+        rim.cornerRadiusPoints = 12
+        rim.lineWidthPoints = 1.0 / max(1, (NSScreen.main?.backingScaleFactor ?? 2))
         rim.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
         rimOverlay = rim
         glass.addSubview(rim)
@@ -226,7 +226,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         imageView = NSImageView(frame: glass.bounds.insetBy(dx: glassPad - 1, dy: glassPad - 1))
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 10
+        imageView.layer?.cornerRadius = 12
         imageView.layer?.masksToBounds = true
         glass.addSubview(imageView)
 
@@ -314,7 +314,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         let glassRect = glassRect(forWindowSize: size)
         if let shadow = shadowView as? ShadowOverlay {
             shadow.frame = contentView?.bounds ?? .zero
-            shadow.imageFrame = glassRect
+            shadow.imageFrame = .zero
             shadow.needsDisplay = true
         }
         glassView?.frame = glassRect
