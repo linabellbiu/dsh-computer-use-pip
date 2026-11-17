@@ -98,9 +98,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
-    private let padX: CGFloat = 22
-    private let padTop: CGFloat = 16
-    private let padBottom: CGFloat = 34
+    private let padX: CGFloat = 0
+    private let padTop: CGFloat = 0
+    private let padBottom: CGFloat = 0
     private var shadowView: NSView!
     private var contentView: PipContentView!
 
@@ -128,7 +128,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = false
+        window.hasShadow = true
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
@@ -139,6 +139,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.onDoubleClick = { [weak self] in self?.onZoom() }
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
+        content.layer?.cornerRadius = 12
+        content.layer?.borderWidth = 1
+        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.18).cgColor
         content.layer?.masksToBounds = false
         window.contentView = content
 
