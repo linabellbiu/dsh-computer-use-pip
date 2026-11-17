@@ -89,7 +89,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
@@ -101,8 +101,14 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
         content.layer?.cornerRadius = 12
-        content.layer?.borderWidth = 0
-        content.layer?.masksToBounds = true
+        content.layer?.borderWidth = 1
+        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.12).cgColor
+        content.layer?.masksToBounds = false
+        // Codex 式层次：偏移向下的柔和投影 + 1px 深色细边
+        content.layer?.shadowColor = NSColor.black.cgColor
+        content.layer?.shadowOpacity = 0.16
+        content.layer?.shadowRadius = 20
+        content.layer?.shadowOffset = CGSize(width: 0, height: -12)
         window.contentView = content
 
         // 注意：这里必须用 content 的 bounds（窗口坐标），rect 里带的是屏幕原点
