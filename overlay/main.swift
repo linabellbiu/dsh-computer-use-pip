@@ -89,7 +89,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
@@ -100,9 +100,8 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.onDoubleClick = { [weak self] in self?.onZoom() }
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
-        content.layer?.cornerRadius = 12
-        content.layer?.borderWidth = 0.5
-        content.layer?.borderColor = NSColor(calibratedWhite: 1, alpha: 0.16).cgColor
+        content.layer?.cornerRadius = 10
+        content.layer?.borderWidth = 0
         content.layer?.masksToBounds = true
         window.contentView = content
 
@@ -118,12 +117,12 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.addSubview(glass)
 
         // 注意：这里必须用 content 的 bounds（窗口坐标），rect 里带的是屏幕原点
-        let edge: CGFloat = 5
+        let edge: CGFloat = 0
         imageView = NSImageView(frame: content.bounds.insetBy(dx: edge, dy: edge))
         imageView.autoresizingMask = [.width, .height]
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 8
+        imageView.layer?.cornerRadius = 10
         imageView.layer?.masksToBounds = true
         glass.addSubview(imageView)
 
