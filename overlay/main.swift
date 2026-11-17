@@ -139,9 +139,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
-    private let padX: CGFloat = 0
-    private let padTop: CGFloat = 0
-    private let padBottom: CGFloat = 0
+    private let padX: CGFloat = 24
+    private let padTop: CGFloat = 16
+    private let padBottom: CGFloat = 36
     private var shadowView: NSView!
     private var cornerBacking: NSView!
     private var clipView: NSView!
@@ -167,17 +167,18 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func buildWindow() {
         zoomed = defaults.bool(forKey: "pip.zoomed")
         let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
-        let rect = NSRect(origin: rememberedOrigin(size: image), size: image)
+        let size = NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom)
+        let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
 
-        let content = PipContentView(frame: NSRect(origin: .zero, size: image))
+        let content = PipContentView(frame: NSRect(origin: .zero, size: size))
         content.onDoubleClick = { [weak self] in self?.onZoom() }
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
@@ -185,8 +186,15 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window.contentView = content
         contentView = content
 
+        // 投影层：只在图像外侧绘制，不进入画面
+        let shadow = ShadowOverlay(frame: content.bounds)
+        shadow.autoresizingMask = [.width, .height]
+        shadow.imageFrame = imageRect(for: image)
+        shadowView = shadow
+        content.addSubview(shadow)
+
         // 唯一的一层圆角裁剪：白色底 + 图像，全部裁进 12pt 圆角，四边四角完全一致
-        clipView = NSView(frame: NSRect(origin: .zero, size: image))
+        clipView = NSView(frame: imageRect(for: image))
         clipView.autoresizingMask = [.width, .height]
         clipView.wantsLayer = true
         clipView.layer?.backgroundColor = NSColor.white.cgColor
@@ -257,11 +265,22 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     }
 
     private func applyChromeLayout(for image: NSSize) {
-        let content = window.frame.size
-        contentView?.frame = NSRect(origin: .zero, size: content)
-        clipView?.frame = NSRect(origin: .zero, size: content)
-        imageView.frame = (clipView?.bounds ?? NSRect(origin: .zero, size: content)).insetBy(dx: -1, dy: -1)
-        controlBar.frame = NSRect(x: content.width - 62, y: content.height - 30, width: 54, height: 22)
+        let contentSize = window.frame.size
+        contentView?.frame = NSRect(origin: .zero, size: contentSize)
+        let imageRect = NSRect(
+            x: padX,
+            y: padBottom,
+            width: max(1, contentSize.width - padX * 2),
+            height: max(1, contentSize.height - padTop - padBottom)
+        )
+        if let shadow = shadowView as? ShadowOverlay {
+            shadow.frame = contentView?.bounds ?? .zero
+            shadow.imageFrame = imageRect
+            shadow.needsDisplay = true
+        }
+        clipView?.frame = imageRect
+        imageView.frame = (clipView?.bounds ?? .zero).insetBy(dx: -1, dy: -1)
+        controlBar.frame = NSRect(x: imageRect.width - 62, y: imageRect.height - 30, width: 54, height: 22)
     }
 
     private func rememberedOrigin(size: NSSize) -> NSPoint {
@@ -277,7 +296,6 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         }
         return NSPoint(x: vf.maxX - size.width - 16, y: vf.maxY - size.height - 16)
     }
-
     private func tick() {
         defaults.set(window.frame.origin.x, forKey: "pip.origin.x")
         defaults.set(window.frame.origin.y, forKey: "pip.origin.y")
