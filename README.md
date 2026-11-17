@@ -5,7 +5,8 @@ Agent 在后台操作电脑时，屏幕右上角浮一个**置顶小窗**，实�
 
 ## 界面
 
-- **尺寸**：宽 320 固定，高度跟随目标窗口宽高比（140–430），就是个缩略图。
+- **尺寸**：宽 320，高度跟随目标窗口宽高比（140–430）；**双击在 1× / 3× 之间切换**（3× 受屏幕高度限制）。
+- **玻璃**：原生 `NSVisualEffectView` 毛玻璃底，图片四周留 5pt 露出玻璃边，圆角 12。
 - **按钮**（右上角深色小胶囊里的两个图标）：
   - ⤴ **接管**：把被操作的窗口切到前台，你直接接手（不影响 Agent 继续跑）。
   - ✕ **关闭**：只收起小窗。**不影响 Agent**；它的下一个动作会让小窗自己重新出现。
@@ -49,9 +50,15 @@ bridge.log      桥接启动/退出记录
 
 ## 安装 / 卸载
 
+需要 macOS 13+ 和 Xcode Command Line Tools（构建原生小窗）。
+
 ```bash
-./install.sh      # 复制到 ~/.dsh/tools/dsh-computer-use-pip/0.1.0 + profile 登记 + 软链，然后 ⌘Q 重启 App
+git clone https://github.com/linabellbiu/dsh-computer-use-pip.git
+cd dsh-computer-use-pip
+./install.sh          # 构建小窗 + 复制到 ~/.dsh/tools + profile 登记 + 软链
 ```
+
+然后 ⌘Q 退出 DSH 再打开。
 
 卸载：还原 `~/.dsh/profiles/desktop/package.json.bak-pip-*`，删 `~/.dsh/tools/dsh-computer-use-pip`、
 `~/.dsh/profiles/desktop/node_modules/dsh-computer-use-pip`、`~/.dsh/computer-use-pip`，再重启 App。
