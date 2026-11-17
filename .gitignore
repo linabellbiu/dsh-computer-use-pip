@@ -1,0 +1,4 @@
+node_modules/
+dist/ComputerUsePip.app/
+*.bak-*
+.DS_Store

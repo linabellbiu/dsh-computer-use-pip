@@ -1,0 +1,4 @@
+# 把「电脑操作小窗」挂进 DSH profile
+- insert:
+    - id: computer-use-pip
+      name: dsh-computer-use-pip
