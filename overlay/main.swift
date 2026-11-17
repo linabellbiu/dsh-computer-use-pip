@@ -139,10 +139,12 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
-    private let padX: CGFloat = 26
-    private let padTop: CGFloat = 18
-    private let padBottom: CGFloat = 40
+    private let padX: CGFloat = 0
+    private let padTop: CGFloat = 0
+    private let padBottom: CGFloat = 0
     private var shadowView: NSView!
+    private var cornerBacking: NSView!
+    private var clipView: NSView!
     private var borderOverlay: BorderOverlay!
     private var contentView: PipContentView!
 
@@ -165,52 +167,45 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func buildWindow() {
         zoomed = defaults.bool(forKey: "pip.zoomed")
         let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
-        let size = image
-        let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
+        let rect = NSRect(origin: rememberedOrigin(size: image), size: image)
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = false
+        window.hasShadow = true
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
-        window.appearance = NSAppearance(named: .darkAqua)
 
-        let content = PipContentView(frame: NSRect(origin: .zero, size: size))
+        let content = PipContentView(frame: NSRect(origin: .zero, size: image))
         content.onDoubleClick = { [weak self] in self?.onZoom() }
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
-        content.layer?.cornerRadius = 12
         content.layer?.masksToBounds = false
         window.contentView = content
+        contentView = content
 
-        // 投影层：窗口留出透明边距，投影画在边距里，边缘不会出现"描边"
-        shadowView = NSView(frame: imageRect(for: image))
-        shadowView.wantsLayer = true
-        shadowView.layer?.backgroundColor = NSColor.black.cgColor
-        shadowView.layer?.cornerRadius = 12
-        shadowView.layer?.shadowColor = NSColor.black.cgColor
-        shadowView.layer?.shadowOpacity = 0
-        shadowView.layer?.shadowRadius = 24
-        shadowView.layer?.shadowOffset = CGSize(width: 0, height: -8)
-        content.addSubview(shadowView)
+        // 唯一的一层圆角裁剪：白色底 + 图像，全部裁进 12pt 圆角，四边四角完全一致
+        clipView = NSView(frame: NSRect(origin: .zero, size: image))
+        clipView.autoresizingMask = [.width, .height]
+        clipView.wantsLayer = true
+        clipView.layer?.backgroundColor = NSColor.white.cgColor
+        clipView.layer?.cornerRadius = 12
+        clipView.layer?.masksToBounds = true
+        content.addSubview(clipView)
 
-        imageView = NSImageView(frame: imageRect(for: image))
-        imageView.autoresizingMask = []
+        imageView = NSImageView(frame: clipView.bounds.insetBy(dx: -1, dy: -1))
+        imageView.autoresizingMask = [.width, .height]
         imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 12
-        imageView.layer?.masksToBounds = true
+        clipView.addSubview(imageView)
 
-        content.addSubview(imageView)
-
-        // 右上角极小控制条：接管 / 关闭
-        controlBar = NSView(frame: controlBarRect(for: image))
+        // 右上角控制条
+        controlBar = NSView(frame: NSRect(x: image.width - 62, y: image.height - 30, width: 54, height: 22))
+        controlBar.autoresizingMask = [.minXMargin, .minYMargin]
         controlBar.wantsLayer = true
         controlBar.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 0.62).cgColor
         controlBar.layer?.cornerRadius = 11
-        content.addSubview(controlBar)
+        clipView.addSubview(controlBar)
 
         var bx: CGFloat = 2
         let specs: [(String, String, Selector)] = [
@@ -236,6 +231,18 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         window.orderFrontRegardless()
     }
 
+    private var currentWidth: CGFloat { width * (zoomed ? zoomFactor : 1) }
+
+    private func heightFor(aspect: Double) -> CGFloat {
+        let ratio = (aspect > 0.25 && aspect < 8) ? CGFloat(aspect) : 1.6
+        let raw = (currentWidth / ratio).rounded()
+        if zoomed {
+            let maxH = ((NSScreen.main ?? NSScreen.screens[0]).visibleFrame.height - 40)
+            return min(raw, maxH)
+        }
+        return max(140, min(430, raw))
+    }
+
     private func windowSize(for image: NSSize) -> NSSize {
         let content = NSRect(origin: .zero, size: NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom))
         return window != nil ? window.frameRect(forContentRect: content).size : content.size
@@ -250,28 +257,11 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     }
 
     private func applyChromeLayout(for image: NSSize) {
-        let frame = imageRect(for: image)
-        if let shadow = shadowView as? ShadowOverlay {
-            shadow.imageFrame = frame
-            shadow.frame = contentView?.bounds ?? frame
-            shadow.needsDisplay = true
-        }
-        contentView?.imageFrame = .zero
-        contentView?.needsDisplay = true
-        imageView.frame = frame
-        controlBar.frame = controlBarRect(for: image)
-    }
-
-    private var currentWidth: CGFloat { width * (zoomed ? zoomFactor : 1) }
-
-    private func heightFor(aspect: Double) -> CGFloat {
-        let ratio = (aspect > 0.25 && aspect < 8) ? CGFloat(aspect) : 1.6
-        let raw = (currentWidth / ratio).rounded()
-        if zoomed {
-            let maxH = ((NSScreen.main ?? NSScreen.screens[0]).visibleFrame.height - 40)
-            return min(raw, maxH)
-        }
-        return max(140, min(430, raw))
+        let content = window.frame.size
+        contentView?.frame = NSRect(origin: .zero, size: content)
+        clipView?.frame = NSRect(origin: .zero, size: content)
+        imageView.frame = (clipView?.bounds ?? NSRect(origin: .zero, size: content)).insetBy(dx: -1, dy: -1)
+        controlBar.frame = NSRect(x: content.width - 62, y: content.height - 30, width: 54, height: 22)
     }
 
     private func rememberedOrigin(size: NSSize) -> NSPoint {
