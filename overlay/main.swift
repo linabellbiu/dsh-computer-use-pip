@@ -141,7 +141,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func buildWindow() {
         zoomed = defaults.bool(forKey: "pip.zoomed")
         let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
-        let size = windowSize(for: image)
+        let size = image
         let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
         window = NSPanel(contentRect: rect, styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -178,8 +178,8 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         shadowView.layer?.shadowOffset = CGSize(width: 0, height: -8)
         content.addSubview(shadowView)
 
-        imageView = NSImageView(frame: imageRect(for: image))
-        imageView.autoresizingMask = []
+        imageView = NSImageView(frame: content.bounds)
+        imageView.autoresizingMask = [.width, .height]
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         imageView.layer?.cornerRadius = 12
@@ -213,12 +213,14 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
             bx += 25
         }
 
-        window.setFrame(rect, display: false)
+        let frameRect = NSRect(origin: rememberedOrigin(size: window.frame.size), size: window.frame.size)
+        window.setFrame(frameRect, display: false)
         window.orderFrontRegardless()
     }
 
     private func windowSize(for image: NSSize) -> NSSize {
-        NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom)
+        let content = NSRect(origin: .zero, size: NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom))
+        return window != nil ? window.frameRect(forContentRect: content).size : content.size
     }
 
     private func imageRect(for image: NSSize) -> NSRect {
