@@ -52,6 +52,8 @@ final class ShadowOverlay: NSView {
 }
 
 final class BorderOverlay: NSView {
+    var strokeColor: NSColor = .white
+    var cornerRadiusPoints: CGFloat = 12
     var strokeAlpha: CGFloat = 0.10
     var lineWidthPoints: CGFloat = 1
     override var isOpaque: Bool { false }
@@ -59,9 +61,9 @@ final class BorderOverlay: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let lw = lineWidthPoints
         let rect = bounds.insetBy(dx: lw / 2, dy: lw / 2)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 12 - lw / 2, yRadius: 12 - lw / 2)
+        let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadiusPoints - lw / 2, yRadius: cornerRadiusPoints - lw / 2)
         path.lineWidth = lw
-        NSColor.red.withAlphaComponent(0.9).setStroke()
+        strokeColor.withAlphaComponent(strokeAlpha).setStroke()
         path.stroke()
     }
 }
@@ -94,7 +96,7 @@ final class PipContentView: NSView {
             let grow = CGFloat(i)
             let rect = imageFrame.insetBy(dx: -grow, dy: -grow).offsetBy(dx: 0, dy: -grow * 0.45)
             let path = NSBezierPath(roundedRect: rect, xRadius: 12 + grow * 0.4, yRadius: 12 + grow * 0.4)
-            NSColor.red.withAlphaComponent(0.25).setFill()
+            NSColor.black.withAlphaComponent(0.020).setFill()
             path.fill()
         }
         NSGraphicsContext.restoreGraphicsState()
@@ -139,12 +141,15 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
 
     private let width: CGFloat = 320
-    private let padX: CGFloat = 24
-    private let padTop: CGFloat = 16
-    private let padBottom: CGFloat = 36
+    private let glassPad: CGFloat = 8
+    private let padX: CGFloat = 18
+    private let padTop: CGFloat = 14
+    private let padBottom: CGFloat = 28
     private var shadowView: NSView!
     private var cornerBacking: NSView!
     private var clipView: NSView!
+    private var glassView: NSVisualEffectView!
+    private var rimOverlay: BorderOverlay!
     private var borderOverlay: BorderOverlay!
     private var contentView: PipContentView!
 
@@ -167,7 +172,10 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private func buildWindow() {
         zoomed = defaults.bool(forKey: "pip.zoomed")
         let image = NSSize(width: currentWidth, height: heightFor(aspect: 1.6))
-        let size = NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom)
+        let size = NSSize(
+            width: image.width + 2 * glassPad + 2 * padX,
+            height: image.height + 2 * glassPad + padTop + padBottom
+        )
         let rect = NSRect(origin: rememberedOrigin(size: size), size: size)
         window = NSWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window.isOpaque = false
@@ -189,23 +197,38 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         // 投影层：只在图像外侧绘制，不进入画面
         let shadow = ShadowOverlay(frame: content.bounds)
         shadow.autoresizingMask = [.width, .height]
-        shadow.imageFrame = imageRect(for: image)
+        shadow.imageFrame = glassRect(for: image)
         shadowView = shadow
         content.addSubview(shadow)
 
-        // 唯一的一层圆角裁剪：白色底 + 图像，全部裁进 12pt 圆角，四边四角完全一致
-        clipView = NSView(frame: imageRect(for: image))
-        clipView.autoresizingMask = [.width, .height]
-        clipView.wantsLayer = true
-        clipView.layer?.backgroundColor = NSColor.white.cgColor
-        clipView.layer?.cornerRadius = 12
-        clipView.layer?.masksToBounds = true
-        content.addSubview(clipView)
+        // 原生玻璃壳：NSVisualEffectView 真实毛玻璃，图像内缩 8pt 露出玻璃边
+        let glass = NSVisualEffectView(frame: glassRect(for: image))
+        glass.material = NSVisualEffectView.Material.hudWindow
+        glass.blendingMode = NSVisualEffectView.BlendingMode.behindWindow
+        glass.state = NSVisualEffectView.State.active
+        glass.autoresizingMask = []
+        glass.wantsLayer = true
+        glass.layer?.cornerRadius = 16
+        glass.layer?.masksToBounds = true
+        glassView = glass
+        content.addSubview(glass)
 
-        imageView = NSImageView(frame: clipView.bounds.insetBy(dx: -1, dy: -1))
-        imageView.autoresizingMask = [.width, .height]
+        // 玻璃边缘高光（1px 白 18%，不是黑边）
+        let rim = BorderOverlay(frame: glass.bounds)
+        rim.strokeColor = NSColor.white
+        rim.strokeAlpha = 0.18
+        rim.cornerRadiusPoints = 16
+        rim.lineWidthPoints = 1
+        rim.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
+        rimOverlay = rim
+        glass.addSubview(rim)
+
+        imageView = NSImageView(frame: glass.bounds.insetBy(dx: glassPad - 1, dy: glassPad - 1))
         imageView.imageScaling = .scaleProportionallyUpOrDown
-        clipView.addSubview(imageView)
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 10
+        imageView.layer?.masksToBounds = true
+        glass.addSubview(imageView)
 
         // 右上角控制条
         controlBar = NSView(frame: NSRect(x: image.width - 62, y: image.height - 30, width: 54, height: 22))
@@ -213,7 +236,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         controlBar.wantsLayer = true
         controlBar.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 0.62).cgColor
         controlBar.layer?.cornerRadius = 11
-        clipView.addSubview(controlBar)
+        glass.addSubview(controlBar)
 
         var bx: CGFloat = 2
         let specs: [(String, String, Selector)] = [
@@ -252,35 +275,23 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     }
 
     private func windowSize(for image: NSSize) -> NSSize {
-        let content = NSRect(origin: .zero, size: NSSize(width: image.width + padX * 2, height: image.height + padTop + padBottom))
-        return window != nil ? window.frameRect(forContentRect: content).size : content.size
+        NSSize(
+            width: image.width + 2 * glassPad + 2 * padX,
+            height: image.height + 2 * glassPad + padTop + padBottom
+        )
     }
 
-    private func imageRect(for image: NSSize) -> NSRect {
-        NSRect(x: padX, y: padBottom, width: image.width, height: image.height)
+    private func glassRect(for image: NSSize) -> NSRect {
+        NSRect(x: padX, y: padBottom, width: image.width + 2 * glassPad, height: image.height + 2 * glassPad)
     }
 
-    private func controlBarRect(for image: NSSize) -> NSRect {
-        NSRect(x: padX + image.width - 62, y: padBottom + image.height - 30, width: 54, height: 22)
-    }
-
-    private func applyChromeLayout(for image: NSSize) {
-        let contentSize = window.frame.size
-        contentView?.frame = NSRect(origin: .zero, size: contentSize)
-        let imageRect = NSRect(
+    private func glassRect(forWindowSize size: NSSize) -> NSRect {
+        NSRect(
             x: padX,
             y: padBottom,
-            width: max(1, contentSize.width - padX * 2),
-            height: max(1, contentSize.height - padTop - padBottom)
+            width: max(1, size.width - 2 * padX),
+            height: max(1, size.height - padTop - padBottom)
         )
-        if let shadow = shadowView as? ShadowOverlay {
-            shadow.frame = contentView?.bounds ?? .zero
-            shadow.imageFrame = imageRect
-            shadow.needsDisplay = true
-        }
-        clipView?.frame = imageRect
-        imageView.frame = (clipView?.bounds ?? .zero).insetBy(dx: -1, dy: -1)
-        controlBar.frame = NSRect(x: imageRect.width - 62, y: imageRect.height - 30, width: 54, height: 22)
     }
 
     private func rememberedOrigin(size: NSSize) -> NSPoint {
@@ -296,6 +307,28 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         }
         return NSPoint(x: vf.maxX - size.width - 16, y: vf.maxY - size.height - 16)
     }
+
+    private func applyChromeLayout(for image: NSSize) {
+        let size = window.frame.size
+        contentView?.frame = NSRect(origin: .zero, size: size)
+        let glassRect = glassRect(forWindowSize: size)
+        if let shadow = shadowView as? ShadowOverlay {
+            shadow.frame = contentView?.bounds ?? .zero
+            shadow.imageFrame = glassRect
+            shadow.needsDisplay = true
+        }
+        glassView?.frame = glassRect
+        rimOverlay?.frame = NSRect(origin: .zero, size: glassRect.size)
+        let inner = NSRect(
+            x: glassPad,
+            y: glassPad,
+            width: max(1, glassRect.width - 2 * glassPad),
+            height: max(1, glassRect.height - 2 * glassPad)
+        )
+        imageView.frame = inner.insetBy(dx: -1, dy: -1)
+        controlBar.frame = NSRect(x: inner.width - 62 + glassPad, y: inner.height - 30 + glassPad, width: 54, height: 22)
+    }
+
     private func tick() {
         defaults.set(window.frame.origin.x, forKey: "pip.origin.x")
         defaults.set(window.frame.origin.y, forKey: "pip.origin.y")
