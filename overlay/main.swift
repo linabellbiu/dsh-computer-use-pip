@@ -101,7 +101,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.wantsLayer = true
         content.layer?.backgroundColor = NSColor.clear.cgColor
         content.layer?.cornerRadius = 12
-        content.layer?.borderWidth = 1
+        content.layer?.borderWidth = 0
         content.layer?.borderColor = NSColor.black.withAlphaComponent(0.12).cgColor
         content.layer?.masksToBounds = false
         // 用系统原生窗口投影（不要自绘双层阴影）
