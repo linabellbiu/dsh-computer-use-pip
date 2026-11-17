@@ -135,6 +135,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     private var lastVisible: Bool?
     private var lastAspect: Double = 0
     private var lastControlSeq = 0
+    private var suppressUntil: TimeInterval = 0
     private var zoomed = false
     private let zoomFactor: CGFloat = 3
     private let defaults = UserDefaults.standard
@@ -336,7 +337,9 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
             if lastVisible != false { setVisible(false) }
             return
         }
-        let visible = state.visible ?? true
+        var visible = state.visible ?? true
+        if !visible { suppressUntil = 0 }
+        if visible && Date().timeIntervalSince1970 < suppressUntil { visible = false }
         if lastVisible != visible { setVisible(visible) }
         guard visible else { return }
 
@@ -428,7 +431,11 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func onTakeover() { writeControl("takeover") }
-    @objc private func onHide() { writeControl("hide"); setVisible(false) }
+    @objc private func onHide() {
+        writeControl("hide")
+        suppressUntil = Date().timeIntervalSince1970 + 5
+        setVisible(false)
+    }
 }
 
 let args = CommandLine.arguments
