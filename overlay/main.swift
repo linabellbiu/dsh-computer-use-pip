@@ -141,7 +141,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         content.layer?.backgroundColor = NSColor.clear.cgColor
         content.layer?.cornerRadius = 12
         content.layer?.borderWidth = 0.5
-        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.10).cgColor
+        content.layer?.borderColor = NSColor.black.withAlphaComponent(0.05).cgColor
         content.layer?.masksToBounds = false
         window.contentView = content
 
