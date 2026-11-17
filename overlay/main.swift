@@ -201,34 +201,33 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         shadowView = shadow
         content.addSubview(shadow)
 
-        // 原生玻璃壳：NSVisualEffectView 真实毛玻璃，图像内缩 8pt 露出玻璃边
-        let glass = NSVisualEffectView(frame: glassRect(for: image))
-        glass.material = NSVisualEffectView.Material.hudWindow
-        glass.blendingMode = NSVisualEffectView.BlendingMode.behindWindow
-        glass.state = NSVisualEffectView.State.active
-        glass.autoresizingMask = []
-        glass.wantsLayer = true
-        glass.layer?.cornerRadius = 12
-        glass.layer?.masksToBounds = true
-        glassView = glass
-        content.addSubview(glass)
+        // 普通圆角裁剪视图（NSVisualEffectView 的圆角不会裁剪毛玻璃材质，四角会方）
+        let shell = NSView(frame: glassRect(for: image))
+        shell.autoresizingMask = []
+        shell.wantsLayer = true
+        shell.layer?.backgroundColor = NSColor.white.cgColor
+        shell.layer?.cornerRadius = 12
+        shell.layer?.masksToBounds = true
+        glassView = nil
+        clipView = shell
+        content.addSubview(shell)
 
         // 玻璃边缘高光（1px 白 18%，不是黑边）
-        let rim = BorderOverlay(frame: glass.bounds)
+        let rim = BorderOverlay(frame: shell.bounds)
         rim.strokeColor = NSColor.black
         rim.strokeAlpha = 0.30
         rim.cornerRadiusPoints = 12
         rim.lineWidthPoints = 1.0 / max(1, (NSScreen.main?.backingScaleFactor ?? 2))
         rim.autoresizingMask = [NSView.AutoresizingMask.width, NSView.AutoresizingMask.height]
         rimOverlay = rim
-        glass.addSubview(rim)
+        shell.addSubview(rim)
 
-        imageView = NSImageView(frame: glass.bounds.insetBy(dx: glassPad - 1, dy: glassPad - 1))
+        imageView = NSImageView(frame: shell.bounds.insetBy(dx: glassPad - 1, dy: glassPad - 1))
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.wantsLayer = true
         imageView.layer?.cornerRadius = 12
         imageView.layer?.masksToBounds = true
-        glass.addSubview(imageView)
+        shell.addSubview(imageView)
 
         // 右上角控制条
         controlBar = NSView(frame: NSRect(x: image.width - 62, y: image.height - 30, width: 54, height: 22))
@@ -236,7 +235,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
         controlBar.wantsLayer = true
         controlBar.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 0.62).cgColor
         controlBar.layer?.cornerRadius = 11
-        glass.addSubview(controlBar)
+        shell.addSubview(controlBar)
 
         var bx: CGFloat = 2
         let specs: [(String, String, Selector)] = [
@@ -317,7 +316,7 @@ final class PipWindowController: NSObject, NSApplicationDelegate {
             shadow.imageFrame = .zero
             shadow.needsDisplay = true
         }
-        glassView?.frame = glassRect
+        clipView?.frame = glassRect
         rimOverlay?.frame = NSRect(origin: .zero, size: glassRect.size)
         let inner = NSRect(
             x: glassPad,
